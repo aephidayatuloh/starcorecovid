@@ -1,6 +1,8 @@
 library(shiny)
 library(bs4Dash)
+library(rvest)
 library(jsonlite)
+library(readr)
 library(dplyr)
 library(tidyr)
 library(lubridate) 
@@ -9,11 +11,8 @@ library(stringr)
 library(leaflet)
 library(DT)
 library(curl)
-# library(shinyalert)
+library(waiter)
 
-# source("global_db.R")
-source("global_api.R")
-date_range <- c(min(dailynasional$Dates), if_else(day(max(dailynasional$Dates)) < 15, ymd(paste(year(max(dailynasional$Dates)), month(max(dailynasional$Dates)), 15, sep = "-")), max(dailynasional$Dates) %m+% months(1) %>% rollback() + 1))
 
 ui <- bs4DashPage(navbar = bs4DashNavbar(skin = "dark", status = "white", 
                                          leftUi = column(12, 
@@ -35,11 +34,12 @@ ui <- bs4DashPage(navbar = bs4DashNavbar(skin = "dark", status = "white",
                     tags$head(
                       tags$link(rel = "shortcut icon", href = "img/StarCoreLow.png")
                     ),
-                    # useShinyalert(),
+                    use_waiter(),
+                    waiter_show_on_load(),
                     br(),
                     fluidRow(
                       column(width = 3,
-                             p(today_stats$pembaruan, style = "margin-top: auto;margin-bottom: auto;margin-right: 10px;color: #009b4b;font-weight: bold;"),
+                             uiOutput("pembaruan"),
                              plotlyOutput("asean", height = 200),
                              DT::DTOutput(outputId = "provinsi")
                              ),
@@ -81,15 +81,29 @@ ui <- bs4DashPage(navbar = bs4DashNavbar(skin = "dark", status = "white",
                              # )
                       )
                     )
-                  ),
+                  ), 
+                  title = "Starcore - Indonesia Covid-19 Center",
                   controlbar = NULL, 
                   footer = bs4DashFooter(copyrights = HTML("&copy; Starcore Analytics"), right_text = "Covid-19 Monitoring Dashboard"), 
                   sidebar_collapsed = TRUE
 )
 
 server <- function(input, output, session){
+  waiter_show( # show the waiter
+    # spin_fading_circles() # use a spinner
+    spin_dual_circle()
+  )
+  
   options(scipen = 99)
   # shinyalert(title = "Welcome", text = "")
+  
+  # source("global_db.R")
+  source("global_api.R")
+  date_range <- c(min(dailynasional$Dates), if_else(day(max(dailynasional$Dates)) < 15, ymd(paste(year(max(dailynasional$Dates)), month(max(dailynasional$Dates)), 15, sep = "-")), max(dailynasional$Dates) %m+% months(1) %>% rollback() + 1))
+
+  output$pembaruan <- renderUI({
+    p(today_stats$pembaruan, style = "margin-top: auto;margin-bottom: auto;margin-right: 10px;color: #009b4b;font-weight: bold;")
+  })
   
   output$asean <- renderPlotly({
     asean %>% 
@@ -238,19 +252,19 @@ server <- function(input, output, session){
       })
       output$dirawat <- renderValueBox({
         valueBox(value = NULL, footer = "Being Treated", #"Dirawat",
-                 subtitle = h6(sprintf("%s (%s%%)", formatC(today_stats$perawatan, big.mark = ",", decimal.mark = "."), today_stats$pctperawatan), style = "font-weight: bold;margin: 0;text-align: center;"),
+                 subtitle = h6(sprintf("%s (%s)", formatC(today_stats$perawatan, big.mark = ",", decimal.mark = "."), today_stats$pctperawatan), style = "font-weight: bold;margin: 0;text-align: center;"),
                  icon = "hospital", status = "primary"
         )
       })
       output$sembuh <- renderValueBox({
         valueBox(value = NULL, footer = "Recovered", #"Recovered", 
-                 subtitle = h6(sprintf("%s (%s%%)", formatC(today_stats$sembuh, big.mark = ",", decimal.mark = "."), today_stats$pctsembuh), style = "font-weight: bold;margin: 0;text-align: center;"),
+                 subtitle = h6(sprintf("%s (%s)", formatC(today_stats$sembuh, big.mark = ",", decimal.mark = "."), today_stats$pctsembuh), style = "font-weight: bold;margin: 0;text-align: center;"),
                  icon = "heartbeat", status = "success"
         )
       })
       output$meninggal <- renderValueBox({
         valueBox(value = NULL, footer = "Deaths", #"Deaths", 
-                 subtitle = h6(sprintf("%s (%s%%)", formatC(today_stats$meninggal, big.mark = ",", decimal.mark = "."), today_stats$pctmeninggal), style = "font-weight: bold;margin: 0;text-align: center;"),
+                 subtitle = h6(sprintf("%s (%s)", formatC(today_stats$meninggal, big.mark = ",", decimal.mark = "."), today_stats$pctmeninggal), style = "font-weight: bold;margin: 0;text-align: center;"),
                  icon = "medrt", status = "danger"
         )
       })
@@ -311,5 +325,6 @@ server <- function(input, output, session){
       })
     }
   })
+  waiter_hide() # hide the waiter
 }
 shinyApp(ui = ui, server = server)

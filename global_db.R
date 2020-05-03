@@ -13,7 +13,7 @@ dbListTables(pgcon)
 asean <- dbReadTable(pgcon, "asean")
 dailynasional <- dbReadTable(pgcon, "dailynasional")
 dailyprovinsi <- dbReadTable(pgcon, "dailyprovinsi")
-geom_provinsi <- dbReadTable(pgcon, "geom_provinsi")
+geom_provinsi <- read.csv("data/geom_provinsi.csv", header = TRUE) 
 
 # pembaruan <- format(nasional$Pembaruan_Terakhir[1] - 7*60*60, "Pembaruan Data Terakhir %d %B %Y %H:%M")
 today_stats <- tibble(pembaruan = format(dailynasional$Pembaruan_Terakhir[1] - 7*60*60, "Latest Update %d %B %Y %H:%M"),

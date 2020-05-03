@@ -1,5 +1,6 @@
 library(rvest)
 library(jsonlite)
+library(readr)
 library(dplyr)
 library(tidyr)
 library(lubridate)
@@ -42,14 +43,20 @@ dailynasional <- fromJSON("https://services5.arcgis.com/VS6HdKS0VfIhv8Ct/arcgis/
          DailyNewSpecimen = Kasus_Diperiksa_Spesimen_Baru_Harian
          )
 
-provinsi <- fromJSON("https://services5.arcgis.com/VS6HdKS0VfIhv8Ct/arcgis/rest/services/COVID19_Indonesia_per_Provinsi/FeatureServer/0/query?where=1%3D1&outFields=*&outSR=4326&f=json")$features
-geom_provinsi <- bind_cols(Province = provinsi$attributes$Provinsi, provinsi$geometry) %>%
-  filter(Province != "Indonesia") %>%
-  rename(longitude = x, latitude = y)
+today_stats <- tibble(pembaruan = format(dailynasional$Pembaruan_Terakhir[1] - 7*60*60, "Latest Update %d %B %Y %H:%M"),
+                      konfirmasi = formatC(last(dailynasional$TotalCases), big.mark = ".", decimal.mark = ","),
+                      kasusbaru = formatC(last(dailynasional$DailyCases), big.mark = ".", decimal.mark = ","),
+                      perawatan = formatC(last(dailynasional$Treated), big.mark = ".", decimal.mark = ","),
+                      pctperawatan = paste0(formatC(round(last(dailynasional$PctTreated), 2), big.mark = ".", decimal.mark = ","), "%"),
+                      sembuh = formatC(last(dailynasional$Recovered), big.mark = ".", decimal.mark = ","),
+                      pctsembuh = paste0(formatC(round(last(dailynasional$PctRecovered), 2), big.mark = ".", decimal.mark = ","), "%"),
+                      meninggal = formatC(last(dailynasional$Deaths), big.mark = ".", decimal.mark = ","),
+                      pctmeninggal = paste0(formatC(round(last(dailynasional$PctDeaths), 2), big.mark = ".", decimal.mark = ","), "%")
+                      )
 
-dailyprovinsi <- readr::read_csv("https://opendata.arcgis.com/datasets/685be21cd0034247b5ceeac996d947fe_0.csv")
-# fromJSON("https://services5.arcgis.com/VS6HdKS0VfIhv8Ct/arcgis/rest/services/Statistik_Harian_per_Provinsi_COVID19_Indonesia_Rev/FeatureServer/0/query?outFields=*&where=1%3D1&outFields=*&outSR=4326&f=json")
-dailyprovinsi <- dailyprovinsi %>%
+
+# dailyprovinsi <- fromJSON("https://services5.arcgis.com/VS6HdKS0VfIhv8Ct/arcgis/rest/services/Statistik_Harian_per_Provinsi_COVID19_Indonesia_Rev/FeatureServer/0/query?outFields=*&where=1%3D1&outFields=*&outSR=4326&f=json")
+dailyprovinsi <- read_csv("https://opendata.arcgis.com/datasets/685be21cd0034247b5ceeac996d947fe_0.csv") %>%
   mutate(Tanggal = as_date(as_datetime(Tanggal/1000, tz = "Asia/Jakarta")),
          Treated = Kasus_Terkonfirmasi_Akumulatif - (Kasus_Sembuh_Akumulatif + Kasus_Meninggal_Akumulatif),
          PctTreated = round(Treated/Kasus_Terkonfirmasi_Akumulatif*100, 2),
@@ -68,4 +75,14 @@ dailyprovinsi <- dailyprovinsi %>%
          DailyDeaths = Penambahan_Harian_Kasus_Meningg,
          Active = Kasus_Aktif_Akumulatif,
          )
+
+# geom_provinsi <- fromJSON("https://services5.arcgis.com/VS6HdKS0VfIhv8Ct/arcgis/rest/services/COVID19_Indonesia_per_Provinsi/FeatureServer/0/query?where=1%3D1&outFields=*&outSR=4326&f=json")$features
+geom_provinsi <- read_csv("data/geom_provinsi.csv") 
+
+tbl_provinsi <- dailyprovinsi %>% 
+  arrange(desc(Dates)) %>% 
+  distinct(Province, .keep_all = TRUE) %>% 
+  arrange(desc(TotalCases)) %>% 
+  left_join(geom_provinsi, by = "Province")
+
 col_palet <- list(positif = "#ffc107", dirawat = "#007bff", sembuh = "#28a745", meninggal = "#dc3545")
