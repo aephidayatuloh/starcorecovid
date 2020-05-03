@@ -9,9 +9,10 @@ library(stringr)
 library(leaflet)
 library(DT)
 library(curl)
-library(shinyalert)
+# library(shinyalert)
 
-source("global.R")
+# source("global_db.R")
+source("global_api.R")
 date_range <- c(min(dailynasional$Dates), if_else(day(max(dailynasional$Dates)) < 15, ymd(paste(year(max(dailynasional$Dates)), month(max(dailynasional$Dates)), 15, sep = "-")), max(dailynasional$Dates) %m+% months(1) %>% rollback() + 1))
 
 ui <- bs4DashPage(navbar = bs4DashNavbar(skin = "dark", status = "white", 
@@ -34,7 +35,7 @@ ui <- bs4DashPage(navbar = bs4DashNavbar(skin = "dark", status = "white",
                     tags$head(
                       tags$link(rel = "shortcut icon", href = "img/StarCoreLow.png")
                     ),
-                    useShinyalert(),
+                    # useShinyalert(),
                     br(),
                     fluidRow(
                       column(width = 3,
