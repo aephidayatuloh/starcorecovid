@@ -12,7 +12,7 @@ library(leaflet)
 library(DT)
 library(curl)
 library(waiter)
-
+library(xts)
 
 ui <- bs4DashPage(navbar = bs4DashNavbar(skin = "dark", status = "white", 
                                          leftUi = column(12, 
@@ -196,14 +196,28 @@ server <- function(input, output, session){
         })
         
         output$plotharian <- renderPlotly({
+          dates <- dailyprovinsi %>% filter(Province == prov_selected$Province) %>% .[["Dates"]]
+          data.ts <- dailyprovinsi %>% filter(Province == prov_selected$Province) %>% .[["DailyCases"]]
+          xx <- xts(x = data.ts, order.by = dates)
+          xx <- as.ts(xx)
+          x.info <- attr(xx, "tsp")
+          tt <- seq(from = x.info[1], to = x.info[2], by = 1/x.info[3])
+          
+          ks <- ksmooth(x = tt, y = xx, kernel = "normal", bandwidth = 10, x.points = tt)
+          
           dailyprovinsi %>% 
             filter(Province == prov_selected$Province) %>% 
-            plot_ly(x = ~Dates, y = ~DailyCases, name = "New", color = I(col_palet$positif)) %>% 
-            add_lines() %>% 
-            # add_lines(x = ~Dates, y = ~DailyTreated, name = "Being Treated", color = I(col_palet$dirawat)) %>% 
-            add_lines(x = ~Dates, y = ~DailyRecovered, name = "Recovered", color = I(col_palet$sembuh)) %>% 
-            add_lines(x = ~Dates, y = ~DailyDeaths, name = "Death", color = I(col_palet$meninggal)) %>% 
-            layout(showlegend = FALSE, 
+            plot_ly(x = ~Dates, y = ~DailyCases, type = "scatter", mode = "lines", name = "New", color = I(col_palet$positif)) %>% 
+            add_lines(x = ~Dates, y = ~DailyRecovered, name = "Recovered", color = I(col_palet$sembuh)) %>%
+            add_lines(x = ~Dates, y = ~DailyDeaths, name = "Death", color = I(col_palet$meninggal)) %>%
+            add_lines(x = ~Dates, y = round(ks$y, 2), 
+                      line = list(dash = "solid", width = 1.5, color = rgb(0.8, 0.8, 0.8, 0.8)), 
+                      name = "Smoother") %>% 
+            layout(#showlegend = FALSE, 
+                   legend = list(orientation = "h",   # show entries horizontally
+                                 xanchor = "center",  # use center of legend as anchor
+                                 x = 0.5, y = 1.3),
+                   # margin = list(t = 0, b = 10),
                    xaxis = list(title = "Date", range = date_range), 
                    yaxis = list(title = "Daily Cases"),
                    plot_bgcolor='transparent',
@@ -279,13 +293,27 @@ server <- function(input, output, session){
       })
       
       output$plotharian <- renderPlotly({
+        dates <- dailynasional %>% .[["Dates"]]
+        data.ts <- dailynasional %>% .[["DailyCases"]]
+        xx <- xts(x = data.ts, order.by = dates)
+        xx <- as.ts(xx)
+        x.info <- attr(xx, "tsp")
+        tt <- seq(from = x.info[1], to = x.info[2], by = 1/x.info[3])
+        
+        ks <- ksmooth(x = tt, y = xx, kernel = "normal", bandwidth = 10, x.points = tt)
+        
         dailynasional %>% 
-          plot_ly(x = ~Dates, y = ~DailyCases, name = "New", color = I(col_palet$positif)) %>% 
-          add_lines() %>% 
-          # add_lines(x = ~Dates, y = ~DailyTreated, name = "Being Treated", color = I(col_palet$dirawat)) %>% 
+          plot_ly(x = ~Dates, y = ~DailyCases, type = "scatter", mode = "lines", name = "New", color = I(col_palet$positif)) %>% 
           add_lines(x = ~Dates, y = ~DailyRecovered, name = "Recovered", color = I(col_palet$sembuh)) %>% 
           add_lines(x = ~Dates, y = ~DailyDeaths, name = "Death", color = I(col_palet$meninggal)) %>% 
-          layout(showlegend = FALSE, 
+          add_lines(x = ~Dates, y = round(ks$y, 2), 
+                    line = list(dash = "solid", width = 1.5, color = rgb(0.8, 0.8, 0.8, 0.8)), 
+                    name = "Smoother") %>% 
+          layout(#showlegend = FALSE, 
+                 legend = list(orientation = "h",   # show entries horizontally
+                               xanchor = "center",  # use center of legend as anchor
+                               x = 0.5, y = 1.3),
+                 # margin = list(t = 0, b = 10),
                  xaxis = list(title = "Date", range = date_range), 
                  yaxis = list(title = "Daily Cases"),
                  plot_bgcolor='transparent',
