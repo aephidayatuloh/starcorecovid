@@ -1,4 +1,5 @@
 library(shiny)
+library(flexdashboard)
 library(bs4Dash)
 library(rvest)
 library(jsonlite)
@@ -13,6 +14,7 @@ library(DT)
 library(curl)
 library(waiter)
 library(xts)
+library(shinyalert)
 
 ui <- bs4DashPage(navbar = bs4DashNavbar(skin = "dark", status = "white", 
                                          leftUi = column(12, 
@@ -20,14 +22,10 @@ ui <- bs4DashPage(navbar = bs4DashNavbar(skin = "dark", status = "white",
                                                            img(src= "img/StarCoreLow.png", width = "60px", style = "margin: auto -25px;"), 
                                                            h5(HTML("Indonesia Covid-19 Center"), style = "margin: auto 28px;color: #009b4b;font-weight: bold;")
                                                            )
-                                                         )#,
-                                         # rightUi = p(today_stats$pembaruan, style = "margin-top: auto;margin-bottom: auto;margin-right: 10px;color: #009b4b;font-weight: bold;")
+                                                         )
                                          ), 
                   sidebar = bs4DashSidebar(inputId = "sidebar", 
                                            disable = TRUE
-                                           # bs4SidebarMenu(
-                                           #   bs4SidebarMenuItem(text = "Nasional")
-                                           # )
                                            ), 
                   body = bs4DashBody(
                     tags$style('body{background-color:#000000;}'),
@@ -36,18 +34,23 @@ ui <- bs4DashPage(navbar = bs4DashNavbar(skin = "dark", status = "white",
                     ),
                     use_waiter(),
                     waiter_show_on_load(),
+                    useShinyalert(),
                     br(),
                     fluidRow(
                       column(width = 3,
-                             uiOutput("pembaruan"),
-                             plotlyOutput("asean", height = 200),
-                             DT::DTOutput(outputId = "provinsi")
+                             # uiOutput("pembaruan"),
+                             # plotlyOutput("asean", height = 200),
+                             DT::DTOutput(outputId = "provinsi", height = "100%"),
+                             br()
                              ),
                       column(6,
                              fluidRow(
-                               # valueBoxOutput("positif", width = 4),
-                               # valueBoxOutput("sembuh", width = 4),
-                               # valueBoxOutput("meninggal", width = 4)
+                               # div(style = "display: flex;height: 50%;", 
+                               #     valueBoxOutput("positif", width = 4),
+                               #     valueBoxOutput("dirawat", width = 4),
+                               #     valueBoxOutput("sembuh", width = 4),
+                               #     valueBoxOutput("meninggal", width = 4)
+                               #     )
                                column(6,
                                       fluidRow(
                                         valueBoxOutput("positif", width = 6),
@@ -62,26 +65,24 @@ ui <- bs4DashPage(navbar = bs4DashNavbar(skin = "dark", status = "white",
                                )
                              ),
                              fluidRow(
-                               column(6,
-                                      # bs4Card(width = 12, closable = FALSE, collapsible = FALSE, maximizable = TRUE,
-                                              leafletOutput("provmap", height = 360)
-                                      # )
-                               ),
-                               column(6,
-                                      # bs4Card(width = 12, closable = FALSE, collapsible = FALSE, maximizable = TRUE,
-                                              plotlyOutput("plotharian", height = 360)
-                                      # )
+                               column(12,
+                                      tabsetPanel(id = "plotmap", side = "left", vertical = FALSE,
+                                                  tabPanel(tabName = "Daily Trend", active = TRUE,
+                                                           plotlyOutput("plotharian", height = 275, width = "100%")
+                                                           ),
+                                                  tabPanel(tabName = "Maps", active = FALSE,
+                                                           leafletOutput("distmap", height = 275, width = "100%")
+                                                           )
+                                                  )
+                                      )
                                )
-                             )
-                      ),
+                             ),
                       column(3,
-                             # bs4Card(width = 12, height = 430, closable = FALSE, maximizable = TRUE, collapsible = FALSE, 
-                                     plotlyOutput("trenkumulatif", height = 250),
-                                     plotlyOutput("trenratio", height = 250)
-                             # )
+                             plotlyOutput("trenkumulatif", height = 230, width = "100%"),
+                             plotlyOutput("trenratio", height = 220, width = "100%")
+                             )
                       )
-                    )
-                  ), 
+                    ), 
                   title = "Starcore - Indonesia Covid-19 Center",
                   controlbar = NULL, 
                   footer = bs4DashFooter(copyrights = HTML("&copy; Starcore Analytics"), right_text = "Covid-19 Monitoring Dashboard"), 
@@ -95,44 +96,19 @@ server <- function(input, output, session){
   )
   
   options(scipen = 99)
-  # shinyalert(title = "Welcome", text = "")
   
   # source("global_db.R")
   source("global_api.R")
   date_range <- c(min(dailynasional$Dates), if_else(day(max(dailynasional$Dates)) < 15, ymd(paste(year(max(dailynasional$Dates)), month(max(dailynasional$Dates)), 15, sep = "-")), max(dailynasional$Dates) %m+% months(1) %>% rollback() + 1))
 
-  output$pembaruan <- renderUI({
-    p(today_stats$pembaruan, style = "margin-top: auto;margin-bottom: auto;margin-right: 10px;color: #009b4b;font-weight: bold;")
-  })
-  
-  output$asean <- renderPlotly({
-    asean %>% 
-      arrange(TotalCases) %>% 
-      mutate(Country = factor(Country, levels = Country)) %>% 
-      plot_ly(x = ~TotalCases, y = ~Country, 
-              text = ~paste("Total Cases:", TotalCases, "\nCFR:", paste0(TotalDeaths," (", round(TotalDeaths/TotalCases*100, 2)), "%)"),
-              hoverinfo = "text",
-              type = "bar", orientation = "h", marker = list(color = ~I(Color))
-              ) %>% 
-      layout(showlegend = FALSE, 
-             xaxis = list(title = "Indonesia Among Asean\nby Total Cases", range = date_range, side = "top"), 
-             yaxis = list(title = ""), 
-             # title = l"Indonesia Among Asean\nby Total Cases",
-             margin = list(t = 50, b = 5),
-             plot_bgcolor='transparent',
-             paper_bgcolor='transparent') %>% 
-      # config(displaylogo = FALSE, modeBarButtonsToRemove = c("zoomIn2d", "zoomOut2d", "sendDataToCloud", "editInChartStudio", "pan2d", "select2d", "lasso2d", "autoScale2d", "resetScale2d"))
-      config(displayModeBar = FALSE)
-      
-  })
-  
   output$provinsi <- DT::renderDT(
     tbl_provinsi %>% 
       select(Province, TotalCases) %>%
-      mutate(TotalCases = formatC(TotalCases, big.mark = ",", decimal.mark = ".")),
-    extensions = 'Scroller', server = TRUE, selection = "single",
+    mutate(TotalCases = formatC(TotalCases, big.mark = ",", decimal.mark = ".", format = "d")),
+    extensions = 'Scroller', server = FALSE, selection = "single",
     options = list(
-      pageLength = 36,
+      pageLength = 35,
+      lengthMenu = c(10, 15),
       autoWidth = FALSE,
       columnDefs = list(list(className = 'dt-left', targets = 0),
                         list(className = 'dt-right', targets = 1)
@@ -144,14 +120,133 @@ server <- function(input, output, session){
       # ajax = 'large.txt',
       deferRender = TRUE,
       dom = 't',
-      scrollY = 200,
-      scrollCollapse = TRUE
+      scrollY = 380,
+      scrollCollapse = FALSE
     ), rownames = FALSE
   )
   
+  output$positif <- renderValueBox({
+    valueBox(value = NULL, footer = "Total Cases", #"Total Cases", 
+             subtitle = h6(sprintf("%s (+%s)", 
+                                   formatC(today_stats$TotalCases, big.mark = ",", decimal.mark = "."), 
+                                   formatC(today_stats$DailyCases, big.mark = ",", decimal.mark = ".")), 
+                           style = "font-weight: bold;margin: 0;text-align: center;"),
+             icon = "clipboard-check", status = "warning"
+    )
+  })
+  output$dirawat <- renderValueBox({
+    valueBox(value = NULL, footer = "Being Treated", #"Dirawat",
+             subtitle = h6(sprintf("%s (%s%%)", 
+                                   formatC(today_stats$Treated, big.mark = ",", decimal.mark = "."), 
+                                   formatC(today_stats$PctTreated, big.mark = ",", decimal.mark = ".")),
+                           style = "font-weight: bold;margin: 0;text-align: center;"),
+             icon = "hospital", status = "primary"
+    )
+  })
+  output$sembuh <- renderValueBox({
+    valueBox(value = NULL, footer = "Recovered", #"Recovered", 
+             subtitle = h6(sprintf("%s (%s%%)", 
+                                   formatC(today_stats$Recovered, big.mark = ",", decimal.mark = "."), 
+                                   formatC(today_stats$PctRecovered, big.mark = ",", decimal.mark = ".")), 
+                           style = "font-weight: bold;margin: 0;text-align: center;"),
+             icon = "heartbeat", status = "success"
+    )
+  })
+  output$meninggal <- renderValueBox({
+    valueBox(value = NULL, footer = "Deaths", #"Deaths", 
+             subtitle = h6(sprintf("%s (%s%%)", 
+                                   formatC(today_stats$Deaths, big.mark = ",", decimal.mark = "."), 
+                                   formatC(today_stats$PctDeaths, big.mark = ",", decimal.mark = ".")), 
+                           style = "font-weight: bold;margin: 0;text-align: center;"),
+             icon = "medrt", status = "danger"
+    )
+  })
+  
+  output$distmap <- renderLeaflet({
+    tbl_provinsi %>%
+      leaflet() %>%
+      addTiles() %>%
+      addCircles(lng = ~longitude, lat = ~latitude, weight = 1,
+                 radius = ~as.numeric(gsub("[.,]", "", tbl_provinsi$TotalCases))*50, color = "red"
+      )
+  })
+  
+  output$plotharian <- renderPlotly({
+    dates <- dailynasional %>% .[["Dates"]]
+    data.ts <- dailynasional %>% .[["DailyCases"]]
+    xx <- xts(x = data.ts, order.by = dates)
+    xx <- as.ts(xx)
+    x.info <- attr(xx, "tsp")
+    tt <- seq(from = x.info[1], to = x.info[2], by = 1/x.info[3])
+    
+    ks <- ksmooth(x = tt, y = xx, kernel = "normal", bandwidth = 10, x.points = tt)
+    
+    dailynasional %>% 
+      plot_ly(x = ~Dates, y = ~DailyCases, type = "scatter", mode = "lines", name = "New", color = I(col_palet$positif)) %>% 
+      add_lines(x = ~Dates, y = ~DailyRecovered, name = "Recovered", color = I(col_palet$sembuh)) %>% 
+      add_lines(x = ~Dates, y = ~DailyDeaths, name = "Death", color = I(col_palet$meninggal)) %>% 
+      add_lines(x = ~Dates, y = round(ks$y, 2), 
+                line = list(dash = "solid", width = 1.5, color = rgb(0.8, 0.8, 0.8, 0.8)), 
+                name = "Trend") %>% 
+      layout(#showlegend = FALSE, 
+        legend = list(orientation = "h",   # show entries horizontally
+                      xanchor = "center",  # use center of legend as anchor
+                      x = 0.5, y = 1.2,
+                      font = list(size = 10)),
+        margin = list(t = 0, b = 0, l = 0, r = 5),
+        xaxis = list(title = "Date", 
+                     range = date_range,
+                     font = list(size = 5)), 
+        yaxis = list(title = "Daily Cases",
+                     font = list(size = 5)),
+        plot_bgcolor='transparent',
+        paper_bgcolor='transparent') %>% 
+      config(displaylogo = FALSE, modeBarButtonsToRemove = c("zoomIn2d", "zoomOut2d", "sendDataToCloud", "editInChartStudio", "pan2d", "select2d", "lasso2d", "autoScale2d", "resetScale2d"))
+    
+  })
+  
+  output$trenkumulatif <- renderPlotly({
+    dailynasional %>% 
+      plot_ly(x = ~Dates, y = ~TotalCases, name = "Confirmed", color = I(col_palet$positif)) %>% 
+      add_lines() %>% 
+      add_lines(x = ~Dates, y = ~Treated, name = "Being Treated", color = I(col_palet$dirawat)) %>% 
+      add_lines(x = ~Dates, y = ~Recovered, name = "Recovered", color = I(col_palet$sembuh)) %>% 
+      add_lines(x = ~Dates, y = ~Deaths, name = "Death", color = I(col_palet$meninggal)) %>% 
+      layout(showlegend = FALSE, 
+             margin = list(t = 0, b = 0, l = 0, r = 5),
+             xaxis = list(title = "", 
+                          range = date_range,
+                          font = list(size = 5)), 
+             yaxis = list(title = "Total Cases Cummulative",
+                          font = list(size = 5)),
+             plot_bgcolor='transparent',
+             paper_bgcolor='transparent') %>% 
+      config(displaylogo = FALSE, modeBarButtonsToRemove = c("zoomIn2d", "zoomOut2d", "sendDataToCloud", "editInChartStudio", "pan2d", "select2d", "lasso2d", "autoScale2d", "resetScale2d"))
+    
+  })
+  
+  output$trenratio <- renderPlotly({
+    dailynasional %>% 
+      plot_ly(x = ~Dates) %>% 
+      add_lines(x = ~Dates, y = ~round(PctTreated, 2), name = "Being Treated", color = I(col_palet$dirawat)) %>% 
+      add_lines(x = ~Dates, y = ~round(PctRecovered, 2), name = "Recovered", color = I(col_palet$sembuh)) %>% 
+      add_lines(x = ~Dates, y = ~round(PctDeaths, 2), name = "Death", color = I(col_palet$meninggal)) %>% 
+      layout(showlegend = FALSE, 
+             margin = list(t = 0, b = 0, l = 0, r = 5),
+             xaxis = list(title = "Date", 
+                          range = date_range,
+                          font = list(size = 5)), 
+             yaxis = list(title = "Ratio to Total Cases (%)",
+                          font = list(size = 5)),
+             plot_bgcolor='transparent',
+             paper_bgcolor='transparent') %>% 
+      config(displaylogo = FALSE, modeBarButtonsToRemove = c("zoomIn2d", "zoomOut2d", "sendDataToCloud", "editInChartStudio", "pan2d", "select2d", "lasso2d", "autoScale2d", "resetScale2d"))
+  })
+  
+  
   prov_selected <- reactive({
     if(is.null(input$provinsi_rows_selected)){
-      tbl_provinsi
+      tbl_provinsi[tbl_provinsi$Province != "Indonesia", ]
     } else {
       tbl_provinsi[input$provinsi_rows_selected, ]
     }
@@ -160,44 +255,56 @@ server <- function(input, output, session){
   observe({
     prov_selected <- prov_selected()
     if(nrow(prov_selected) == 1){
+      if(prov_selected$Province == "Indonesia"){
         output$positif <- renderValueBox({
           valueBox(value = NULL, footer = "Total Cases", #"Total Cases", 
-                   subtitle = h6(sprintf("%s (+%s)", formatC(prov_selected$TotalCases, big.mark = ",", decimal.mark = "."), prov_selected$DailyCases), style = "font-weight: bold;margin: 0;text-align: center;"),
+                   subtitle = h6(sprintf("%s (+%s)", 
+                                         formatC(today_stats$TotalCases, big.mark = ",", decimal.mark = "."), 
+                                         formatC(today_stats$DailyCases, big.mark = ",", decimal.mark = ".")), 
+                                 style = "font-weight: bold;margin: 0;text-align: center;"),
                    icon = "clipboard-check", status = "warning"
           )
         })
         output$dirawat <- renderValueBox({
           valueBox(value = NULL, footer = "Being Treated", #"Dirawat",
-                   subtitle = h6(sprintf("%s (%s%%)", formatC(prov_selected$Treated, big.mark = ",", decimal.mark = "."), prov_selected$PctTreated), style = "font-weight: bold;margin: 0;text-align: center;"),
+                   subtitle = h6(sprintf("%s (%s%%)", 
+                                         formatC(today_stats$Treated, big.mark = ",", decimal.mark = "."), 
+                                         formatC(today_stats$PctTreated, big.mark = ",", decimal.mark = ".")),
+                                 style = "font-weight: bold;margin: 0;text-align: center;"),
                    icon = "hospital", status = "primary"
           )
         })
         output$sembuh <- renderValueBox({
           valueBox(value = NULL, footer = "Recovered", #"Recovered", 
-                   subtitle = h6(sprintf("%s (%s%%)", formatC(prov_selected$Recovered, big.mark = ",", decimal.mark = "."), prov_selected$PctRecovered), style = "font-weight: bold;margin: 0;text-align: center;"),
+                   subtitle = h6(sprintf("%s (%s%%)", 
+                                         formatC(today_stats$Recovered, big.mark = ",", decimal.mark = "."), 
+                                         formatC(today_stats$PctRecovered, big.mark = ",", decimal.mark = ".")), 
+                                 style = "font-weight: bold;margin: 0;text-align: center;"),
                    icon = "heartbeat", status = "success"
           )
         })
         output$meninggal <- renderValueBox({
           valueBox(value = NULL, footer = "Deaths", #"Deaths", 
-                   subtitle = h6(sprintf("%s (%s%%)", formatC(prov_selected$Deaths, big.mark = ",", decimal.mark = "."), prov_selected$PctDeaths), style = "font-weight: bold;margin: 0;text-align: center;"),
+                   subtitle = h6(sprintf("%s (%s%%)", 
+                                         formatC(today_stats$Deaths, big.mark = ",", decimal.mark = "."), 
+                                         formatC(today_stats$PctDeaths, big.mark = ",", decimal.mark = ".")), 
+                                 style = "font-weight: bold;margin: 0;text-align: center;"),
                    icon = "medrt", status = "danger"
           )
         })
         
-        output$provmap <- renderLeaflet({
-          prov_selected %>% 
-          leaflet() %>% 
+        output$distmap <- renderLeaflet({
+          prov_selected %>%
+            leaflet() %>%
             addTiles() %>%
-            addPopups(lng = ~longitude, lat = ~latitude, 
-                      popup = ~HTML(paste0("<span style='color:#56c5db;'>", Province, "</span><br/><br/>Total Cases: ", formatC(TotalCases, big.mark = ",", decimal.mark = "."), "<br/>CFR: ", PctDeaths, "%"))
-                      ) %>% 
-            setView(lng = prov_selected$longitude, lat = prov_selected$latitude, zoom = 5)
+            addCircles(lng = ~longitude, lat = ~latitude, weight = 1,
+                       radius = ~as.numeric(gsub("[.,]", "", prov_selected$TotalCases))*50, color = "red"
+            )
         })
         
         output$plotharian <- renderPlotly({
-          dates <- dailyprovinsi %>% filter(Province == prov_selected$Province) %>% .[["Dates"]]
-          data.ts <- dailyprovinsi %>% filter(Province == prov_selected$Province) %>% .[["DailyCases"]]
+          dates <- dailynasional %>% .[["Dates"]]
+          data.ts <- dailynasional %>% .[["DailyCases"]]
           xx <- xts(x = data.ts, order.by = dates)
           xx <- as.ts(xx)
           x.info <- attr(xx, "tsp")
@@ -205,38 +312,44 @@ server <- function(input, output, session){
           
           ks <- ksmooth(x = tt, y = xx, kernel = "normal", bandwidth = 10, x.points = tt)
           
-          dailyprovinsi %>% 
-            filter(Province == prov_selected$Province) %>% 
+          dailynasional %>% 
             plot_ly(x = ~Dates, y = ~DailyCases, type = "scatter", mode = "lines", name = "New", color = I(col_palet$positif)) %>% 
-            add_lines(x = ~Dates, y = ~DailyRecovered, name = "Recovered", color = I(col_palet$sembuh)) %>%
-            add_lines(x = ~Dates, y = ~DailyDeaths, name = "Death", color = I(col_palet$meninggal)) %>%
+            add_lines(x = ~Dates, y = ~DailyRecovered, name = "Recovered", color = I(col_palet$sembuh)) %>% 
+            add_lines(x = ~Dates, y = ~DailyDeaths, name = "Death", color = I(col_palet$meninggal)) %>% 
             add_lines(x = ~Dates, y = round(ks$y, 2), 
                       line = list(dash = "solid", width = 1.5, color = rgb(0.8, 0.8, 0.8, 0.8)), 
-                      name = "Smoother") %>% 
+                      name = "Trend") %>% 
             layout(#showlegend = FALSE, 
-                   legend = list(orientation = "h",   # show entries horizontally
-                                 xanchor = "center",  # use center of legend as anchor
-                                 x = 0.5, y = 1.3),
-                   # margin = list(t = 0, b = 10),
-                   xaxis = list(title = "Date", range = date_range), 
-                   yaxis = list(title = "Daily Cases"),
-                   plot_bgcolor='transparent',
-                   paper_bgcolor='transparent') %>% 
+              legend = list(orientation = "h",   # show entries horizontally
+                            xanchor = "center",  # use center of legend as anchor
+                            x = 0.5, y = 1.2,
+                            font = list(size = 10)),
+              margin = list(t = 0, b = 0, l = 0, r = 5),
+              xaxis = list(title = "Date", 
+                           range = date_range,
+                           font = list(size = 5)), 
+              yaxis = list(title = "Daily Cases",
+                           font = list(size = 5)),
+              plot_bgcolor='transparent',
+              paper_bgcolor='transparent') %>% 
             config(displaylogo = FALSE, modeBarButtonsToRemove = c("zoomIn2d", "zoomOut2d", "sendDataToCloud", "editInChartStudio", "pan2d", "select2d", "lasso2d", "autoScale2d", "resetScale2d"))
           
         })
         
         output$trenkumulatif <- renderPlotly({
-          dailyprovinsi %>% 
-            filter(Province == prov_selected$Province) %>% 
+          dailynasional %>% 
             plot_ly(x = ~Dates, y = ~TotalCases, name = "Confirmed", color = I(col_palet$positif)) %>% 
             add_lines() %>% 
             add_lines(x = ~Dates, y = ~Treated, name = "Being Treated", color = I(col_palet$dirawat)) %>% 
             add_lines(x = ~Dates, y = ~Recovered, name = "Recovered", color = I(col_palet$sembuh)) %>% 
             add_lines(x = ~Dates, y = ~Deaths, name = "Death", color = I(col_palet$meninggal)) %>% 
             layout(showlegend = FALSE, 
-                   xaxis = list(title = "", range = date_range), 
-                   yaxis = list(title = "Total Cases Cummulative"),
+                   margin = list(t = 0, b = 0, l = 0, r = 5),
+                   xaxis = list(title = "", 
+                                range = date_range,
+                                font = list(size = 5)), 
+                   yaxis = list(title = "Total Cases Cummulative",
+                                font = list(size = 5)),
                    plot_bgcolor='transparent',
                    paper_bgcolor='transparent') %>% 
             config(displaylogo = FALSE, modeBarButtonsToRemove = c("zoomIn2d", "zoomOut2d", "sendDataToCloud", "editInChartStudio", "pan2d", "select2d", "lasso2d", "autoScale2d", "resetScale2d"))
@@ -244,115 +357,154 @@ server <- function(input, output, session){
         })
         
         output$trenratio <- renderPlotly({
-          dailyprovinsi %>% 
-            filter(Province == prov_selected$Province) %>% 
+          dailynasional %>% 
             plot_ly(x = ~Dates) %>% 
             add_lines(x = ~Dates, y = ~round(PctTreated, 2), name = "Being Treated", color = I(col_palet$dirawat)) %>% 
             add_lines(x = ~Dates, y = ~round(PctRecovered, 2), name = "Recovered", color = I(col_palet$sembuh)) %>% 
             add_lines(x = ~Dates, y = ~round(PctDeaths, 2), name = "Death", color = I(col_palet$meninggal)) %>% 
             layout(showlegend = FALSE, 
-                   xaxis = list(title = "Date", range = date_range), 
-                   yaxis = list(title = "Ratio to Total Cases (%)"),
+                   margin = list(t = 0, b = 0, l = 0, r = 5),
+                   xaxis = list(title = "Date", 
+                                range = date_range,
+                                font = list(size = 5)), 
+                   yaxis = list(title = "Ratio to Total Cases (%)",
+                                font = list(size = 5)),
                    plot_bgcolor='transparent',
                    paper_bgcolor='transparent') %>% 
             config(displaylogo = FALSE, modeBarButtonsToRemove = c("zoomIn2d", "zoomOut2d", "sendDataToCloud", "editInChartStudio", "pan2d", "select2d", "lasso2d", "autoScale2d", "resetScale2d"))
         })
-    } else {
-      output$positif <- renderValueBox({
-        valueBox(value = NULL, footer = "Total Cases", #"Total Cases", 
-                 subtitle = h6(sprintf("%s (+%s)", formatC(today_stats$konfirmasi, big.mark = ",", decimal.mark = "."), today_stats$kasusbaru), style = "font-weight: bold;margin: 0;text-align: center;"),
-                 icon = "clipboard-check", status = "warning"
-        )
-      })
-      output$dirawat <- renderValueBox({
-        valueBox(value = NULL, footer = "Being Treated", #"Dirawat",
-                 subtitle = h6(sprintf("%s (%s)", formatC(today_stats$perawatan, big.mark = ",", decimal.mark = "."), today_stats$pctperawatan), style = "font-weight: bold;margin: 0;text-align: center;"),
-                 icon = "hospital", status = "primary"
-        )
-      })
-      output$sembuh <- renderValueBox({
-        valueBox(value = NULL, footer = "Recovered", #"Recovered", 
-                 subtitle = h6(sprintf("%s (%s)", formatC(today_stats$sembuh, big.mark = ",", decimal.mark = "."), today_stats$pctsembuh), style = "font-weight: bold;margin: 0;text-align: center;"),
-                 icon = "heartbeat", status = "success"
-        )
-      })
-      output$meninggal <- renderValueBox({
-        valueBox(value = NULL, footer = "Deaths", #"Deaths", 
-                 subtitle = h6(sprintf("%s (%s)", formatC(today_stats$meninggal, big.mark = ",", decimal.mark = "."), today_stats$pctmeninggal), style = "font-weight: bold;margin: 0;text-align: center;"),
-                 icon = "medrt", status = "danger"
-        )
-      })
-      
-      output$provmap <- renderLeaflet({
-        prov_selected %>% 
-          leaflet() %>% 
-          addTiles() %>%
-          addCircles(lng = ~longitude, lat = ~latitude, weight = 1,
-                     radius = ~as.numeric(gsub("[.,]", "", prov_selected$TotalCases))*50, color = "red"
+      } else {
+        output$positif <- renderValueBox({
+          valueBox(value = NULL, footer = "Total Cases", #"Total Cases", 
+                   subtitle = h6(sprintf("%s (+%s)", 
+                                         formatC(prov_selected$TotalCases, big.mark = ",", decimal.mark = "."), 
+                                         formatC(prov_selected$DailyCases, big.mark = ",", decimal.mark = ".")), 
+                                 style = "font-weight: bold;margin: 0;text-align: center;"),
+                   icon = "clipboard-check", status = "warning"
           )
-      })
-      
-      output$plotharian <- renderPlotly({
-        dates <- dailynasional %>% .[["Dates"]]
-        data.ts <- dailynasional %>% .[["DailyCases"]]
-        xx <- xts(x = data.ts, order.by = dates)
-        xx <- as.ts(xx)
-        x.info <- attr(xx, "tsp")
-        tt <- seq(from = x.info[1], to = x.info[2], by = 1/x.info[3])
+        })
+        output$dirawat <- renderValueBox({
+          valueBox(value = NULL, footer = "Being Treated", #"Dirawat",
+                   subtitle = h6(sprintf("%s (%s%%)",
+                                         formatC(prov_selected$Treated, big.mark = ",", decimal.mark = "."),
+                                         formatC(prov_selected$PctTreated, big.mark = ",", decimal.mark = ".")),
+                                 style = "font-weight: bold;margin: 0;text-align: center;"),
+                   icon = "hospital", status = "primary"
+          )
+        })
+
+        output$sembuh <- renderValueBox({
+          valueBox(value = NULL, footer = "Recovered", #"Recovered", 
+                   subtitle = h6(sprintf("%s (%s%%)", 
+                                         formatC(prov_selected$Recovered, big.mark = ",", decimal.mark = "."), 
+                                         formatC(prov_selected$PctRecovered, big.mark = ",", decimal.mark = ".")), 
+                                 style = "font-weight: bold;margin: 0;text-align: center;"),
+                   icon = "heartbeat", status = "success"
+          )
+        })
+        output$meninggal <- renderValueBox({
+          valueBox(value = NULL, footer = "Deaths", #"Deaths", 
+                   subtitle = h6(sprintf("%s (%s%%)", 
+                                         formatC(prov_selected$Deaths, big.mark = ",", decimal.mark = "."), 
+                                         formatC(prov_selected$PctDeaths, big.mark = ",", decimal.mark = ".")), style = "font-weight: bold;margin: 0;text-align: center;"),
+                   icon = "medrt", status = "danger"
+          )
+        })
         
-        ks <- ksmooth(x = tt, y = xx, kernel = "normal", bandwidth = 10, x.points = tt)
+        output$distmap <- renderLeaflet({
+          prov_selected %>%
+          leaflet() %>%
+            addTiles() %>%
+            addPopups(lng = ~longitude, lat = ~latitude,
+                      popup = ~HTML(paste0("<span style='color:#56c5db;'>", Province, "</span><br/><br/>Total Cases: ", formatC(TotalCases, big.mark = ",", decimal.mark = "."), "<br/>CFR: ", PctDeaths, "%"))
+                      ) %>%
+            setView(lng = prov_selected$longitude, lat = prov_selected$latitude, zoom = 5)
+        })
         
-        dailynasional %>% 
-          plot_ly(x = ~Dates, y = ~DailyCases, type = "scatter", mode = "lines", name = "New", color = I(col_palet$positif)) %>% 
-          add_lines(x = ~Dates, y = ~DailyRecovered, name = "Recovered", color = I(col_palet$sembuh)) %>% 
-          add_lines(x = ~Dates, y = ~DailyDeaths, name = "Death", color = I(col_palet$meninggal)) %>% 
-          add_lines(x = ~Dates, y = round(ks$y, 2), 
-                    line = list(dash = "solid", width = 1.5, color = rgb(0.8, 0.8, 0.8, 0.8)), 
-                    name = "Smoother") %>% 
-          layout(#showlegend = FALSE, 
-                 legend = list(orientation = "h",   # show entries horizontally
-                               xanchor = "center",  # use center of legend as anchor
-                               x = 0.5, y = 1.3),
-                 # margin = list(t = 0, b = 10),
-                 xaxis = list(title = "Date", range = date_range), 
-                 yaxis = list(title = "Daily Cases"),
-                 plot_bgcolor='transparent',
-                 paper_bgcolor='transparent') %>% 
-          config(displaylogo = FALSE, modeBarButtonsToRemove = c("zoomIn2d", "zoomOut2d", "sendDataToCloud", "editInChartStudio", "pan2d", "select2d", "lasso2d", "autoScale2d", "resetScale2d"))
+        dailyprov <- reactive({
+          dailyprovinsi %>% 
+            filter(Province == prov_selected$Province)
+        })
         
-      })
-      
-      output$trenkumulatif <- renderPlotly({
-        dailynasional %>% 
-          plot_ly(x = ~Dates, y = ~TotalCases, name = "Confirmed", color = I(col_palet$positif)) %>% 
-          add_lines() %>% 
-          add_lines(x = ~Dates, y = ~Treated, name = "Being Treated", color = I(col_palet$dirawat)) %>% 
-          add_lines(x = ~Dates, y = ~Recovered, name = "Recovered", color = I(col_palet$sembuh)) %>% 
-          add_lines(x = ~Dates, y = ~Deaths, name = "Death", color = I(col_palet$meninggal)) %>% 
-          layout(showlegend = FALSE, 
-                 xaxis = list(title = "", range = date_range), 
-                 yaxis = list(title = "Total Cases Cummulative"),
-                 plot_bgcolor='transparent',
-                 paper_bgcolor='transparent') %>% 
-          config(displaylogo = FALSE, modeBarButtonsToRemove = c("zoomIn2d", "zoomOut2d", "sendDataToCloud", "editInChartStudio", "pan2d", "select2d", "lasso2d", "autoScale2d", "resetScale2d"))
+        output$plotharian <- renderPlotly({
+          dailyprov <- dailyprov()
+          dates <- dailyprov %>% .[["Dates"]]
+          data.ts <- dailyprov %>% .[["DailyCases"]]
+          xx <- xts(x = data.ts, order.by = dates)
+          xx <- as.ts(xx)
+          x.info <- attr(xx, "tsp")
+          tt <- seq(from = x.info[1], to = x.info[2], by = 1/x.info[3])
+          
+          ks <- ksmooth(x = tt, y = xx, kernel = "normal", bandwidth = 10, x.points = tt)
+          
+          dailyprov %>% 
+            plot_ly(x = ~Dates, y = ~DailyCases, type = "scatter", mode = "lines", name = "New", color = I(col_palet$positif)) %>% 
+            add_lines(x = ~Dates, y = ~DailyRecovered, name = "Recovered", color = I(col_palet$sembuh)) %>%
+            add_lines(x = ~Dates, y = ~DailyDeaths, name = "Death", color = I(col_palet$meninggal)) %>%
+            add_lines(x = ~Dates, y = round(ks$y, 2), 
+                      line = list(dash = "solid", width = 1.5, color = rgb(0.8, 0.8, 0.8, 0.8)), 
+                      name = "Trend") %>% 
+            layout(#showlegend = FALSE, 
+                   legend = list(orientation = "h",   # show entries horizontally
+                                 xanchor = "center",  # use center of legend as anchor
+                                 x = 0.5, y = 1.2),
+                   margin = list(t = 0, b = 0, l = 0, r = 5),
+                   xaxis = list(title = "Date", 
+                                range = date_range,
+                                font = list(size = 10)), 
+                   yaxis = list(title = "Daily Cases",
+                                font = list(size = 10)),
+                   plot_bgcolor='transparent',
+                   paper_bgcolor='transparent') %>% 
+            config(displaylogo = FALSE, modeBarButtonsToRemove = c("zoomIn2d", "zoomOut2d", "sendDataToCloud", "editInChartStudio", "pan2d", "select2d", "lasso2d", "autoScale2d", "resetScale2d"))
+          
+        })
         
-      })
-      
-      output$trenratio <- renderPlotly({
-        dailynasional %>% 
-          plot_ly(x = ~Dates) %>% 
-          add_lines(x = ~Dates, y = ~round(PctTreated, 2), name = "Being Treated", color = I(col_palet$dirawat)) %>% 
-          add_lines(x = ~Dates, y = ~round(PctRecovered, 2), name = "Recovered", color = I(col_palet$sembuh)) %>% 
-          add_lines(x = ~Dates, y = ~round(PctDeaths, 2), name = "Death", color = I(col_palet$meninggal)) %>% 
-          layout(showlegend = FALSE, 
-                 xaxis = list(title = "Date", range = date_range), 
-                 yaxis = list(title = "Ratio to Total Cases (%)"),
-                 plot_bgcolor='transparent',
-                 paper_bgcolor='transparent') %>% 
-          config(displaylogo = FALSE, modeBarButtonsToRemove = c("zoomIn2d", "zoomOut2d", "sendDataToCloud", "editInChartStudio", "pan2d", "select2d", "lasso2d", "autoScale2d", "resetScale2d"))
-      })
+        output$trenkumulatif <- renderPlotly({
+          dailyprov() %>% 
+            plot_ly(x = ~Dates, y = ~TotalCases, name = "Confirmed", color = I(col_palet$positif)) %>% 
+            add_lines() %>% 
+            add_lines(x = ~Dates, y = ~Treated, name = "Being Treated", color = I(col_palet$dirawat)) %>% 
+            add_lines(x = ~Dates, y = ~Recovered, name = "Recovered", color = I(col_palet$sembuh)) %>% 
+            add_lines(x = ~Dates, y = ~Deaths, name = "Death", color = I(col_palet$meninggal)) %>% 
+            layout(showlegend = FALSE, 
+                   margin = list(t = 0, b = 0, l = 0, r = 5),
+                   xaxis = list(title = "", 
+                                range = date_range,
+                                font = list(size = 5)), 
+                   yaxis = list(title = "Total Cases Cummulative",
+                                font = list(size = 5)),
+                   plot_bgcolor='transparent',
+                   paper_bgcolor='transparent') %>% 
+            config(displaylogo = FALSE, modeBarButtonsToRemove = c("zoomIn2d", "zoomOut2d", "sendDataToCloud", "editInChartStudio", "pan2d", "select2d", "lasso2d", "autoScale2d", "resetScale2d"))
+          
+        })
+        
+        output$trenratio <- renderPlotly({
+          dailyprov() %>% 
+            plot_ly(x = ~Dates) %>% 
+            add_lines(x = ~Dates, y = ~round(PctTreated, 2), name = "Being Treated", color = I(col_palet$dirawat)) %>% 
+            add_lines(x = ~Dates, y = ~round(PctRecovered, 2), name = "Recovered", color = I(col_palet$sembuh)) %>% 
+            add_lines(x = ~Dates, y = ~round(PctDeaths, 2), name = "Death", color = I(col_palet$meninggal)) %>% 
+            layout(showlegend = FALSE, 
+                   margin = list(t = 0, b = 0, l = 0, r = 5),
+                   xaxis = list(title = "Date", 
+                                range = date_range,
+                                font = list(size = 5)), 
+                   yaxis = list(title = "Ratio to Total Cases (%)",
+                                font = list(size = 5)),
+                   plot_bgcolor='transparent',
+                   paper_bgcolor='transparent') %>% 
+            config(displaylogo = FALSE, modeBarButtonsToRemove = c("zoomIn2d", "zoomOut2d", "sendDataToCloud", "editInChartStudio", "pan2d", "select2d", "lasso2d", "autoScale2d", "resetScale2d"))
+        })
+      }
+    } else {
+      return(NULL)
     }
   })
   waiter_hide() # hide the waiter
+  
+  shinyalert(title = "<span style='color: #009b4b;font-weight: bold;'>Indonesia Covid-19 Center</span>", text = today_stats$pembaruan, animation = "slide-from-top", imageUrl = "img/StarCoreLow.png", imageWidth = 170, imageHeight = 165, html = TRUE)
+  
 }
 shinyApp(ui = ui, server = server)

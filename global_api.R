@@ -6,20 +6,20 @@ library(tidyr)
 library(lubridate)
 library(stringr)
 
-asean <- read_html("https://www.worldometers.info/coronavirus/") %>% 
-  html_table() %>% 
-  .[[1]] %>% 
-  filter(`Country,Other` %in% c("Indonesia", "Singapore", "Malaysia", "Thailand", "Brunei", "Vietnam", "Philippines")) %>% 
-  rename(Country = `Country,Other`) %>% 
-  select(Country, TotalCases, TotalDeaths, TotalRecovered) %>% 
-  mutate(TotalCases = as.numeric(gsub(",", "", TotalCases)),
-         TotalDeaths = as.numeric(gsub(",", "", TotalDeaths)),
-         TotalRecovered = as.numeric(gsub(",", "", TotalRecovered)),
-         FatalityRate = round(TotalDeaths/TotalCases, 4)) %>% 
-  arrange(TotalCases) %>% 
-  left_join(tibble(Country = c("Indonesia", "Singapore", "Malaysia", "Thailand", "Brunei", "Vietnam", "Philippines"), 
-                   Color = c("#f0d948", "#4b86bd", "#4b86bd", "#4b86bd", "#4b86bd", "#4b86bd", "#4b86bd")), 
-            by = "Country")
+# asean <- read_html("https://www.worldometers.info/coronavirus/") %>% 
+#   html_table() %>% 
+#   .[[1]] %>% 
+#   filter(`Country,Other` %in% c("Indonesia", "Singapore", "Malaysia", "Thailand", "Brunei", "Vietnam", "Philippines")) %>% 
+#   rename(Country = `Country,Other`) %>% 
+#   select(Country, TotalCases, TotalDeaths, TotalRecovered) %>% 
+#   mutate(TotalCases = as.numeric(gsub(",", "", TotalCases)),
+#          TotalDeaths = as.numeric(gsub(",", "", TotalDeaths)),
+#          TotalRecovered = as.numeric(gsub(",", "", TotalRecovered)),
+#          FatalityRate = round(TotalDeaths/TotalCases, 4)) %>% 
+#   arrange(TotalCases) %>% 
+#   left_join(tibble(Country = c("Indonesia", "Singapore", "Malaysia", "Thailand", "Brunei", "Vietnam", "Philippines"), 
+#                    Color = c("#f0d948", "#4b86bd", "#4b86bd", "#4b86bd", "#4b86bd", "#4b86bd", "#4b86bd")), 
+#             by = "Country")
 
 dailynasional <- fromJSON("https://services5.arcgis.com/VS6HdKS0VfIhv8Ct/arcgis/rest/services/Statistik_Perkembangan_COVID19_Indonesia/FeatureServer/0/query?where=1%3D1&outFields=*&outSR=4326&f=json")$features$attributes %>%
   mutate(Tanggal = as_date(as_datetime(Tanggal/1000, tz = "Asia/Jakarta")),
@@ -43,15 +43,18 @@ dailynasional <- fromJSON("https://services5.arcgis.com/VS6HdKS0VfIhv8Ct/arcgis/
          DailyNewSpecimen = Kasus_Diperiksa_Spesimen_Baru_Harian
          )
 
-today_stats <- tibble(pembaruan = format(dailynasional$Pembaruan_Terakhir[1] - 7*60*60, "Latest Update %d %B %Y %H:%M"),
-                      konfirmasi = formatC(last(dailynasional$TotalCases), big.mark = ".", decimal.mark = ","),
-                      kasusbaru = formatC(last(dailynasional$DailyCases), big.mark = ".", decimal.mark = ","),
-                      perawatan = formatC(last(dailynasional$Treated), big.mark = ".", decimal.mark = ","),
-                      pctperawatan = paste0(formatC(round(last(dailynasional$PctTreated), 2), big.mark = ".", decimal.mark = ","), "%"),
-                      sembuh = formatC(last(dailynasional$Recovered), big.mark = ".", decimal.mark = ","),
-                      pctsembuh = paste0(formatC(round(last(dailynasional$PctRecovered), 2), big.mark = ".", decimal.mark = ","), "%"),
-                      meninggal = formatC(last(dailynasional$Deaths), big.mark = ".", decimal.mark = ","),
-                      pctmeninggal = paste0(formatC(round(last(dailynasional$PctDeaths), 2), big.mark = ".", decimal.mark = ","), "%")
+today_stats <- tibble(pembaruan = format(dailynasional$Pembaruan_Terakhir[1], "Latest Update %d %B %Y %H:%M"),
+                      TotalCases = last(dailynasional$TotalCases), 
+                      DailyCases = last(dailynasional$DailyCases), 
+                      Treated = last(dailynasional$Treated), 
+                      DailyTreated = last(dailynasional$DailyTreated), 
+                      PctTreated = round(last(dailynasional$PctTreated), 2), 
+                      Recovered = last(dailynasional$Recovered), 
+                      DailyRecovered = last(dailynasional$DailyRecovered), 
+                      PctRecovered = round(last(dailynasional$PctRecovered), 2),
+                      Deaths = last(dailynasional$Deaths), 
+                      DailyDeaths = last(dailynasional$DailyDeaths), 
+                      PctDeaths = round(last(dailynasional$PctDeaths), 2)
                       )
 
 
@@ -84,5 +87,9 @@ tbl_provinsi <- dailyprovinsi %>%
   distinct(Province, .keep_all = TRUE) %>% 
   arrange(desc(TotalCases)) %>% 
   left_join(geom_provinsi, by = "Province")
+
+tbl_provinsi <- tibble(Province = "Indonesia", 
+                       TotalCases = today_stats$TotalCases) %>% 
+  bind_rows(tbl_provinsi)
 
 col_palet <- list(positif = "#ffc107", dirawat = "#007bff", sembuh = "#28a745", meninggal = "#dc3545")
