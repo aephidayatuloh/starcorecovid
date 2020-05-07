@@ -68,18 +68,18 @@ ui <- bs4DashPage(navbar = bs4DashNavbar(skin = "dark", status = "white",
                                column(12,
                                       tabsetPanel(id = "plotmap", side = "left", vertical = FALSE,
                                                   tabPanel(tabName = "Daily Trend", active = TRUE,
-                                                           plotlyOutput("plotharian", height = 275, width = "100%")
+                                                           plotlyOutput("plotharian", height = 310, width = "100%")
                                                            ),
                                                   tabPanel(tabName = "Maps", active = FALSE,
-                                                           leafletOutput("distmap", height = 275, width = "100%")
+                                                           leafletOutput("distmap", height = 310, width = "100%")
                                                            )
                                                   )
                                       )
                                )
                              ),
                       column(3,
-                             plotlyOutput("trenkumulatif", height = 230, width = "100%"),
-                             plotlyOutput("trenratio", height = 220, width = "100%")
+                             plotlyOutput("trenkumulatif", height = 240, width = "100%"),
+                             plotlyOutput("trenratio", height = 240, width = "100%")
                              )
                       )
                     ), 
@@ -120,7 +120,7 @@ server <- function(input, output, session){
       # ajax = 'large.txt',
       deferRender = TRUE,
       dom = 't',
-      scrollY = 380,
+      scrollY = 440,
       scrollCollapse = FALSE
     ), rownames = FALSE
   )
@@ -163,11 +163,11 @@ server <- function(input, output, session){
   })
   
   output$distmap <- renderLeaflet({
-    tbl_provinsi %>%
+    tbl_provinsi[tbl_provinsi$Province != "Indonesia", ] %>%
       leaflet() %>%
       addTiles() %>%
       addCircles(lng = ~longitude, lat = ~latitude, weight = 1,
-                 radius = ~as.numeric(gsub("[.,]", "", tbl_provinsi$TotalCases))*50, color = "red"
+                 radius = ~as.numeric(gsub("[.,]", "", tbl_provinsi[tbl_provinsi$Province != "Indonesia", ]$TotalCases))*50, color = "red"
       )
   })
   
@@ -294,11 +294,11 @@ server <- function(input, output, session){
         })
         
         output$distmap <- renderLeaflet({
-          prov_selected %>%
+          tbl_provinsi[tbl_provinsi$Province != "Indonesia", ] %>%
             leaflet() %>%
             addTiles() %>%
             addCircles(lng = ~longitude, lat = ~latitude, weight = 1,
-                       radius = ~as.numeric(gsub("[.,]", "", prov_selected$TotalCases))*50, color = "red"
+                       radius = ~as.numeric(gsub("[.,]", "", tbl_provinsi[tbl_provinsi$Province != "Indonesia", ]$TotalCases))*50, color = "red"
             )
         })
         
@@ -415,6 +415,9 @@ server <- function(input, output, session){
           prov_selected %>%
           leaflet() %>%
             addTiles() %>%
+            addCircles(lng = ~longitude, lat = ~latitude, weight = 1,
+                       radius = ~as.numeric(gsub("[.,]", "", prov_selected$TotalCases))*30, color = "red"
+                       ) %>%
             addPopups(lng = ~longitude, lat = ~latitude,
                       popup = ~HTML(paste0("<span style='color:#56c5db;'>", Province, "</span><br/><br/>Total Cases: ", formatC(TotalCases, big.mark = ",", decimal.mark = "."), "<br/>CFR: ", PctDeaths, "%"))
                       ) %>%
