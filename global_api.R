@@ -36,12 +36,10 @@ dailynasional <- fromJSON("https://services5.arcgis.com/VS6HdKS0VfIhv8Ct/arcgis/
          DailyTreated = Jumlah_Kasus_Dirawat_per_Hari,
          PctRecovered = Persentase_Pasien_Sembuh,
          PctDeaths = Persentase_Pasien_Meninggal,
-         PctTreated = Persentase_Pasien_dalam_Perawatan,
-         ExaminedSpecimen = Jumlah_Spesimen_Diperiksa,
-         TotalExaminedSpecimen = Jumlah_Kasus_Diperiksa_Spesimen,
-         Negative = Jumlah_Negatif,
-         DailyNewSpecimen = Kasus_Diperiksa_Spesimen_Baru_Harian
-         )
+         PctTreated = Persentase_Pasien_dalam_Perawatan
+         ) %>% 
+  # select(Dates:ODP) %>% 
+  arrange(Dates)
 
 today_stats <- tibble(pembaruan = format(dailynasional$Pembaruan_Terakhir[1], "Latest Update %d %B %Y %H:%M"),
                       TotalCases = last(dailynasional$TotalCases), 
@@ -60,7 +58,7 @@ today_stats <- tibble(pembaruan = format(dailynasional$Pembaruan_Terakhir[1], "L
 
 # dailyprovinsi <- fromJSON("https://services5.arcgis.com/VS6HdKS0VfIhv8Ct/arcgis/rest/services/Statistik_Harian_per_Provinsi_COVID19_Indonesia_Rev/FeatureServer/0/query?outFields=*&where=1%3D1&outFields=*&outSR=4326&f=json")
 dailyprovinsi <- read_csv("https://opendata.arcgis.com/datasets/685be21cd0034247b5ceeac996d947fe_0.csv") %>%
-  mutate(Tanggal = as_date(as_datetime(Tanggal/1000, tz = "Asia/Jakarta")),
+  mutate(Tanggal = as_date(as_datetime(Tanggal, tz = "Asia/Jakarta")),
          Treated = Kasus_Terkonfirmasi_Akumulatif - (Kasus_Sembuh_Akumulatif + Kasus_Meninggal_Akumulatif),
          PctTreated = round(Treated/Kasus_Terkonfirmasi_Akumulatif*100, 2),
          PctRecovered = round(Kasus_Sembuh_Akumulatif/Kasus_Terkonfirmasi_Akumulatif*100, 2),

@@ -1,5 +1,4 @@
 library(shiny)
-library(flexdashboard)
 library(bs4Dash)
 library(rvest)
 library(jsonlite)
@@ -19,7 +18,7 @@ library(shinyalert)
 ui <- bs4DashPage(navbar = bs4DashNavbar(skin = "dark", status = "white", 
                                          leftUi = column(12, 
                                                          fluidRow(
-                                                           img(src= "img/StarCoreLow.png", width = "60px", style = "margin: auto -25px;"), 
+                                                           a(href = "https://www.starcore.co/", img(src = "img/StarCoreLow.png", alt = "Starcore Analytics", width = "60px", style = "margin: auto -25px;")), 
                                                            h5(HTML("Indonesia Covid-19 Center"), style = "margin: auto 28px;color: #009b4b;font-weight: bold;")
                                                            )
                                                          )
@@ -83,9 +82,10 @@ ui <- bs4DashPage(navbar = bs4DashNavbar(skin = "dark", status = "white",
                              )
                       )
                     ), 
-                  title = "Starcore - Indonesia Covid-19 Center",
-                  controlbar = NULL, 
-                  footer = bs4DashFooter(copyrights = HTML("&copy; Starcore Analytics"), right_text = "Covid-19 Monitoring Dashboard"), 
+                  title = "Starcore - Indonesia Covid-19 Center", controlbar_overlay = TRUE, 
+                  controlbar = bs4DashControlbar(skin = "light", title = "Epidemic Simulation", width = 400), 
+                  footer = bs4DashFooter(copyrights = HTML("&copy; <a href='https://www.starcore.co'>Starcore Analytics</a>"), 
+                                         right_text = uiOutput("latest")), 
                   sidebar_collapsed = TRUE
 )
 
@@ -99,6 +99,11 @@ server <- function(input, output, session){
   
   # source("global_db.R")
   source("global_api.R")
+  # pemabruan <- today_stats$pembaruan
+  output$latest <- renderUI({
+    HTML(paste(today_stats$pembaruan, "Source: <a href='https://bnpb-inacovid19.hub.arcgis.com/search?collection=Dataset' target='_blank'>https://bnpb-inacovid19.hub.arcgis.com/</a>", sep = " - "))
+  })
+  
   date_range <- c(min(dailynasional$Dates), if_else(day(max(dailynasional$Dates)) < 15, ymd(paste(year(max(dailynasional$Dates)), month(max(dailynasional$Dates)), 15, sep = "-")), max(dailynasional$Dates) %m+% months(1) %>% rollback() + 1))
 
   output$provinsi <- DT::renderDT(
@@ -174,12 +179,14 @@ server <- function(input, output, session){
   output$plotharian <- renderPlotly({
     dates <- dailynasional %>% .[["Dates"]]
     data.ts <- dailynasional %>% .[["DailyCases"]]
-    xx <- xts(x = data.ts, order.by = dates)
-    xx <- as.ts(xx)
+    # xx <- xts(x = data.ts, order.by = dates)
+    # xx <- as.ts(xx)
+    xx <- ts(data = data.ts, start = c(2020, as.numeric(format(dates[1], "%j"))), frequency = 365)
     x.info <- attr(xx, "tsp")
     tt <- seq(from = x.info[1], to = x.info[2], by = 1/x.info[3])
     
-    ks <- ksmooth(x = tt, y = xx, kernel = "normal", bandwidth = 10, x.points = tt)
+    # ks <- ksmooth(x = tt, y = xx, kernel = "normal", bandwidth = 10, x.points = tt)
+    ks <- ksmooth(x = dates, y = xx, kernel = "normal", bandwidth = 10, x.points = dates)
     
     dailynasional %>% 
       plot_ly(x = ~Dates, y = ~DailyCases, type = "scatter", mode = "lines", name = "New", color = I(col_palet$positif)) %>% 
@@ -305,12 +312,13 @@ server <- function(input, output, session){
         output$plotharian <- renderPlotly({
           dates <- dailynasional %>% .[["Dates"]]
           data.ts <- dailynasional %>% .[["DailyCases"]]
-          xx <- xts(x = data.ts, order.by = dates)
-          xx <- as.ts(xx)
+          # xx <- xts(x = data.ts, order.by = dates)
+          # xx <- as.ts(xx)
+          xx <- ts(data = data.ts, start = c(2020, as.numeric(format(dates[1], "%j"))), frequency = 365)
           x.info <- attr(xx, "tsp")
           tt <- seq(from = x.info[1], to = x.info[2], by = 1/x.info[3])
           
-          ks <- ksmooth(x = tt, y = xx, kernel = "normal", bandwidth = 10, x.points = tt)
+          ks <- ksmooth(x = dates, y = xx, kernel = "normal", bandwidth = 10, x.points = dates)
           
           dailynasional %>% 
             plot_ly(x = ~Dates, y = ~DailyCases, type = "scatter", mode = "lines", name = "New", color = I(col_palet$positif)) %>% 
@@ -424,29 +432,25 @@ server <- function(input, output, session){
             setView(lng = prov_selected$longitude, lat = prov_selected$latitude, zoom = 5)
         })
         
-        dailyprov <- reactive({
-          dailyprovinsi %>% 
-            filter(Province == prov_selected$Province)
-        })
-        
         output$plotharian <- renderPlotly({
-          dailyprov <- dailyprov()
+          dailyprov <- dailyprovinsi %>% 
+            filter(Province == prov_selected$Province)
           dates <- dailyprov %>% .[["Dates"]]
           data.ts <- dailyprov %>% .[["DailyCases"]]
-          xx <- xts(x = data.ts, order.by = dates)
-          xx <- as.ts(xx)
+          # xx <- xts(x = data.ts, order.by = dates)
+          xx <- ts(data = data.ts, start = c(2020, as.numeric(format(dates[1], "%j"))), frequency = 365)
           x.info <- attr(xx, "tsp")
           tt <- seq(from = x.info[1], to = x.info[2], by = 1/x.info[3])
           
-          ks <- ksmooth(x = tt, y = xx, kernel = "normal", bandwidth = 10, x.points = tt)
+          ks <- ksmooth(x = dates, y = xx, kernel = "normal", bandwidth = 10, x.points = dates)
           
           dailyprov %>% 
             plot_ly(x = ~Dates, y = ~DailyCases, type = "scatter", mode = "lines", name = "New", color = I(col_palet$positif)) %>% 
             add_lines(x = ~Dates, y = ~DailyRecovered, name = "Recovered", color = I(col_palet$sembuh)) %>%
             add_lines(x = ~Dates, y = ~DailyDeaths, name = "Death", color = I(col_palet$meninggal)) %>%
-            add_lines(x = ~Dates, y = round(ks$y, 2), 
-                      line = list(dash = "solid", width = 1.5, color = rgb(0.8, 0.8, 0.8, 0.8)), 
-                      name = "Trend") %>% 
+            add_lines(x = ~Dates, y = round(ks$y, 2),
+                      line = list(dash = "solid", width = 1.5, color = rgb(0.8, 0.8, 0.8, 0.8)),
+                      name = "Trend") %>%
             layout(#showlegend = FALSE, 
                    legend = list(orientation = "h",   # show entries horizontally
                                  xanchor = "center",  # use center of legend as anchor
@@ -464,7 +468,8 @@ server <- function(input, output, session){
         })
         
         output$trenkumulatif <- renderPlotly({
-          dailyprov() %>% 
+          dailyprovinsi %>% 
+            filter(Province == prov_selected$Province) %>% 
             plot_ly(x = ~Dates, y = ~TotalCases, name = "Confirmed", color = I(col_palet$positif)) %>% 
             add_lines() %>% 
             add_lines(x = ~Dates, y = ~Treated, name = "Being Treated", color = I(col_palet$dirawat)) %>% 
@@ -484,7 +489,8 @@ server <- function(input, output, session){
         })
         
         output$trenratio <- renderPlotly({
-          dailyprov() %>% 
+          dailyprovinsi %>% 
+            filter(Province == prov_selected$Province) %>% 
             plot_ly(x = ~Dates) %>% 
             add_lines(x = ~Dates, y = ~round(PctTreated, 2), name = "Being Treated", color = I(col_palet$dirawat)) %>% 
             add_lines(x = ~Dates, y = ~round(PctRecovered, 2), name = "Recovered", color = I(col_palet$sembuh)) %>% 
