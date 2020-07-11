@@ -2,24 +2,24 @@ library(shiny)
 library(bs4Dash)
 library(rvest)
 library(jsonlite)
-library(readr)
+# library(readr)
 library(dplyr)
-library(tidyr)
+# library(tidyr)
 library(lubridate) 
 library(plotly)
-library(stringr)
+# library(stringr)
 library(leaflet)
 library(DT)
 library(curl)
 library(waiter)
-library(xts)
+# library(xts)
 library(shinyalert)
 
 ui <- bs4DashPage(navbar = bs4DashNavbar(skin = "dark", status = "white", 
                                          leftUi = column(12, 
                                                          fluidRow(
                                                            a(href = "https://www.starcore.co/", img(src = "img/StarCoreLow.png", alt = "Starcore Analytics", width = "60px", style = "margin: auto -25px;")), 
-                                                           h5(HTML("Indonesia Covid-19 Center"), style = "margin: auto 28px;color: #009b4b;font-weight: bold;")
+                                                           h5(HTML("Indonesia Covid-19 Monitoring"), style = "margin: auto 28px;color: #009b4b;font-weight: bold;")
                                                            )
                                                          )
                                          ), 
@@ -37,9 +37,16 @@ ui <- bs4DashPage(navbar = bs4DashNavbar(skin = "dark", status = "white",
                     br(),
                     fluidRow(
                       column(width = 3,
-                             # uiOutput("pembaruan"),
-                             # plotlyOutput("asean", height = 200),
+                             p("Select province:", style = "margin-bottom: 0;margin-top: 0;font-weight: bold;"),
                              DT::DTOutput(outputId = "provinsi", height = "100%"),
+                             # tabsetPanel(id = "listprovtbl", side = "left", vertical = FALSE,
+                             #             tabPanel(tabName = "List", active = TRUE,
+                             #                      DT::DTOutput(outputId = "provinsi", height = "100%")
+                             #             ),
+                             #             tabPanel(tabName = "Covid Growth", active = FALSE,
+                             #                      img(src = "media/PerkembanganCovidProvinsiHarian.gif", width = "100%")
+                             #             )
+                             # ),
                              br()
                              ),
                       column(6,
@@ -82,7 +89,7 @@ ui <- bs4DashPage(navbar = bs4DashNavbar(skin = "dark", status = "white",
                              )
                       )
                     ), 
-                  title = "Starcore - Indonesia Covid-19 Center", controlbar_overlay = TRUE, 
+                  title = "Starcore - Indonesia Covid-19 Monitoring", controlbar_overlay = TRUE, 
                   controlbar = bs4DashControlbar(skin = "light", title = "Epidemic Simulation", width = 400), 
                   footer = bs4DashFooter(copyrights = HTML("&copy; <a href='https://www.starcore.co'>Starcore Analytics</a>"), 
                                          right_text = uiOutput("latest")), 
@@ -98,7 +105,9 @@ server <- function(input, output, session){
   options(scipen = 99)
   
   # source("global_db.R")
-  source("global_api.R")
+  # source("global_api.R")
+  source("global_api_dt.R")
+  
   # pemabruan <- today_stats$pembaruan
   output$latest <- renderUI({
     HTML(paste(today_stats$pembaruan, "Source: <a href='https://bnpb-inacovid19.hub.arcgis.com/search?collection=Dataset' target='_blank'>https://bnpb-inacovid19.hub.arcgis.com/</a>", sep = " - "))
@@ -125,7 +134,7 @@ server <- function(input, output, session){
       # ajax = 'large.txt',
       deferRender = TRUE,
       dom = 't',
-      scrollY = 440,
+      scrollY = 420,
       scrollCollapse = FALSE
     ), rownames = FALSE
   )
@@ -172,7 +181,7 @@ server <- function(input, output, session){
       leaflet() %>%
       addTiles() %>%
       addCircles(lng = ~longitude, lat = ~latitude, weight = 1,
-                 radius = ~as.numeric(gsub("[.,]", "", tbl_provinsi[tbl_provinsi$Province != "Indonesia", ]$TotalCases))*50, color = "red"
+                 radius = ~as.numeric(gsub("[.,]", "", tbl_provinsi[tbl_provinsi$Province != "Indonesia", ]$TotalCases))*30, color = "red"
       )
   })
   
@@ -266,7 +275,7 @@ server <- function(input, output, session){
         output$positif <- renderValueBox({
           valueBox(value = NULL, footer = "Total Cases", #"Total Cases", 
                    subtitle = h6(sprintf("%s (+%s)", 
-                                         formatC(today_stats$TotalCases, big.mark = ",", decimal.mark = "."), 
+                                         formatC(today_stats$TotalCases, big.mark = ",", decimal.mark = ".", format = "d"), 
                                          formatC(today_stats$DailyCases, big.mark = ",", decimal.mark = ".")), 
                                  style = "font-weight: bold;margin: 0;text-align: center;"),
                    icon = "clipboard-check", status = "warning"
@@ -275,7 +284,7 @@ server <- function(input, output, session){
         output$dirawat <- renderValueBox({
           valueBox(value = NULL, footer = "Being Treated", #"Dirawat",
                    subtitle = h6(sprintf("%s (%s%%)", 
-                                         formatC(today_stats$Treated, big.mark = ",", decimal.mark = "."), 
+                                         formatC(today_stats$Treated, big.mark = ",", decimal.mark = ".", format = "d"), 
                                          formatC(today_stats$PctTreated, big.mark = ",", decimal.mark = ".")),
                                  style = "font-weight: bold;margin: 0;text-align: center;"),
                    icon = "hospital", status = "primary"
@@ -284,7 +293,7 @@ server <- function(input, output, session){
         output$sembuh <- renderValueBox({
           valueBox(value = NULL, footer = "Recovered", #"Recovered", 
                    subtitle = h6(sprintf("%s (%s%%)", 
-                                         formatC(today_stats$Recovered, big.mark = ",", decimal.mark = "."), 
+                                         formatC(today_stats$Recovered, big.mark = ",", decimal.mark = ".", format = "d"), 
                                          formatC(today_stats$PctRecovered, big.mark = ",", decimal.mark = ".")), 
                                  style = "font-weight: bold;margin: 0;text-align: center;"),
                    icon = "heartbeat", status = "success"
@@ -293,7 +302,7 @@ server <- function(input, output, session){
         output$meninggal <- renderValueBox({
           valueBox(value = NULL, footer = "Deaths", #"Deaths", 
                    subtitle = h6(sprintf("%s (%s%%)", 
-                                         formatC(today_stats$Deaths, big.mark = ",", decimal.mark = "."), 
+                                         formatC(today_stats$Deaths, big.mark = ",", decimal.mark = ".", format = "d"), 
                                          formatC(today_stats$PctDeaths, big.mark = ",", decimal.mark = ".")), 
                                  style = "font-weight: bold;margin: 0;text-align: center;"),
                    icon = "medrt", status = "danger"
@@ -305,7 +314,7 @@ server <- function(input, output, session){
             leaflet() %>%
             addTiles() %>%
             addCircles(lng = ~longitude, lat = ~latitude, weight = 1,
-                       radius = ~as.numeric(gsub("[.,]", "", tbl_provinsi[tbl_provinsi$Province != "Indonesia", ]$TotalCases))*50, color = "red"
+                       radius = ~as.numeric(gsub("[.,]", "", tbl_provinsi[tbl_provinsi$Province != "Indonesia", ]$TotalCases))*30, color = "red"
             )
         })
         
@@ -385,8 +394,8 @@ server <- function(input, output, session){
         output$positif <- renderValueBox({
           valueBox(value = NULL, footer = "Total Cases", #"Total Cases", 
                    subtitle = h6(sprintf("%s (+%s)", 
-                                         formatC(prov_selected$TotalCases, big.mark = ",", decimal.mark = "."), 
-                                         formatC(prov_selected$DailyCases, big.mark = ",", decimal.mark = ".")), 
+                                         formatC(prov_selected$TotalCases, big.mark = ",", decimal.mark = ".", format = "d"), 
+                                         formatC(prov_selected$DailyCases, big.mark = ",", decimal.mark = ".", format = "d")), 
                                  style = "font-weight: bold;margin: 0;text-align: center;"),
                    icon = "clipboard-check", status = "warning"
           )
@@ -394,7 +403,7 @@ server <- function(input, output, session){
         output$dirawat <- renderValueBox({
           valueBox(value = NULL, footer = "Being Treated", #"Dirawat",
                    subtitle = h6(sprintf("%s (%s%%)",
-                                         formatC(prov_selected$Treated, big.mark = ",", decimal.mark = "."),
+                                         formatC(prov_selected$Treated, big.mark = ",", decimal.mark = ".", format = "d"),
                                          formatC(prov_selected$PctTreated, big.mark = ",", decimal.mark = ".")),
                                  style = "font-weight: bold;margin: 0;text-align: center;"),
                    icon = "hospital", status = "primary"
@@ -404,7 +413,7 @@ server <- function(input, output, session){
         output$sembuh <- renderValueBox({
           valueBox(value = NULL, footer = "Recovered", #"Recovered", 
                    subtitle = h6(sprintf("%s (%s%%)", 
-                                         formatC(prov_selected$Recovered, big.mark = ",", decimal.mark = "."), 
+                                         formatC(prov_selected$Recovered, big.mark = ",", decimal.mark = ".", format = "d"), 
                                          formatC(prov_selected$PctRecovered, big.mark = ",", decimal.mark = ".")), 
                                  style = "font-weight: bold;margin: 0;text-align: center;"),
                    icon = "heartbeat", status = "success"
@@ -413,7 +422,7 @@ server <- function(input, output, session){
         output$meninggal <- renderValueBox({
           valueBox(value = NULL, footer = "Deaths", #"Deaths", 
                    subtitle = h6(sprintf("%s (%s%%)", 
-                                         formatC(prov_selected$Deaths, big.mark = ",", decimal.mark = "."), 
+                                         formatC(prov_selected$Deaths, big.mark = ",", decimal.mark = ".", format = "d"), 
                                          formatC(prov_selected$PctDeaths, big.mark = ",", decimal.mark = ".")), style = "font-weight: bold;margin: 0;text-align: center;"),
                    icon = "medrt", status = "danger"
           )
@@ -424,10 +433,10 @@ server <- function(input, output, session){
           leaflet() %>%
             addTiles() %>%
             addCircles(lng = ~longitude, lat = ~latitude, weight = 1,
-                       radius = ~as.numeric(gsub("[.,]", "", prov_selected$TotalCases))*30, color = "red"
+                       radius = ~as.numeric(gsub("[.,]", "", prov_selected$TotalCases))*20, color = "red"
                        ) %>%
             addPopups(lng = ~longitude, lat = ~latitude,
-                      popup = ~HTML(paste0("<span style='color:#56c5db;'>", Province, "</span><br/><br/>Total Cases: ", formatC(TotalCases, big.mark = ",", decimal.mark = "."), "<br/>CFR: ", PctDeaths, "%"))
+                      popup = ~HTML(paste0("<span style='color:#56c5db;'>", Province, "</span><br/><br/>Total Cases: ", formatC(TotalCases, big.mark = ",", decimal.mark = ".", format = "d"), "<br/>CFR: ", PctDeaths, "%"))
                       ) %>%
             setView(lng = prov_selected$longitude, lat = prov_selected$latitude, zoom = 5)
         })
@@ -513,7 +522,7 @@ server <- function(input, output, session){
   })
   waiter_hide() # hide the waiter
   
-  shinyalert(title = "<span style='color: #009b4b;font-weight: bold;'>Indonesia Covid-19 Center</span>", text = today_stats$pembaruan, animation = "slide-from-top", imageUrl = "img/StarCoreLow.png", imageWidth = 170, imageHeight = 165, html = TRUE)
+  shinyalert(title = "<span style='color: #009b4b;font-weight: bold;'>Indonesia Covid-19 Monitoring</span>", text = today_stats$pembaruan, animation = "slide-from-top", imageUrl = "img/StarCoreLow.png", imageWidth = 170, imageHeight = 165, html = TRUE)
   
 }
 shinyApp(ui = ui, server = server)
